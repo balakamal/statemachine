@@ -1,0 +1,302 @@
+{
+  "name": "Payout Machine",
+  "class": "example.domain.Disbursement",
+  "version": "v1",
+  "status": "ACTIVE",
+  "sm-qualifier": {
+    "marketplace": "HA",
+    "currency": [
+      "USD",
+      "AUD",
+      "CAD"
+    ]
+  },
+  "bind-guard": "example.action.BindGuard",
+  "initial-state": "INITIAL",
+  "states": [
+    {
+      "name": "INITIAL"
+    },
+    {
+      "name": "NEW",
+      "doAction": ["example.action.ValidatePayeeAction"]
+    },
+    {
+      "name": "PENDING_FUNDING"
+    },
+    {
+      "name": "INSUFFICIENT_FUNDS"
+    },
+    {
+      "name": "CANCELLED"
+    },
+    {
+      "entryGuard": "{ function canEnterState(context) { return typeof 1 == 'number';}}",
+      "name": "PENDING_PROBATION",
+      "guardFailState": "BLACKLISTED"
+    },
+    {
+      "name": "INSTRUMENT_INVALID"
+    },
+    {
+      "name": "GENERAL_ERROR"
+    },
+    {
+      "name": "UNVERIFIED"
+    },
+    {
+      "name": "BLACKLISTED"
+    },
+    {
+      "name": "CHECKING_INSTRUMENT",
+      "entryGuard": "example.action.BlackListGuard",
+      "doAction": [
+        "{ function execute(context) { context.this_rest = 0; return context;}}",
+        "my_test=200,300;new_var=abc",
+        "example.action.RiskCheckAction"
+      ],
+      "guardFailState": "BLACKLISTED"
+    },
+    {
+      "name": "RISK_PENDING"
+    },
+    {
+      "name": "RISK_ERROR"
+    },
+    {
+      "name": "PROCESSING_ERROR"
+    },
+    {
+      "name": "VELOCITY_LIMIT_EXCEEDED"
+    },
+    {
+      "name": "PENDING_PROCESSING"
+    },
+    {
+      "name": "PROCESSING_OCT",
+      "entryGuard": "example.action.VelocityCheckGuard",
+      "doAction": ["example.action.OCTProcessingAction"],
+      "guardFailState": "VELOCITY_LIMIT_EXCEEDED"
+    },
+    {
+      "name": "PROCESSING_ACH",
+      "entryGuard": "example.action.VelocityCheckGuard",
+      "guardFailState": "VELOCITY_LIMIT_EXCEEDED"
+    },
+    {
+      "name": "CARD_DECLINE"
+    },
+    {
+      "name": "CARD_HARD_DECLINE"
+    },
+    {
+      "name": "PROCESSOR_TIMEOUT"
+    },
+    {
+      "name": "CARD_SUCCESS"
+    },
+    {
+      "name": "SENT_FOR_SETTLEMENT"
+    },
+    {
+      "name": "SETTLED"
+    },
+    {
+      "name": "RETURNED"
+    },
+    {
+      "name": "NO_PROCESS"
+    }
+  ],
+  "transitions": [
+    {
+      "type": "EVENT",
+      "event": "NEW",
+      "fromState": "INITIAL",
+      "targetState": "NEW"
+    },
+    {
+      "type": "CONTEXT",
+      "fromState": "NEW",
+      "targetState": "PENDING_PROBATION",
+      "impl": "example.transitions.PendingProbationTransition"
+    },
+    {
+      "type": "CONTEXT",
+      "fromState": "NEW",
+      "targetState": "INSTRUMENT_INVALID",
+      "impl": "example.transitions.InstrumentInvalidTransition"
+    },
+    {
+      "type": "CONTEXT",
+      "fromState": "NEW",
+      "targetState": "GENERAL_ERROR",
+      "expr": "validation_result == 'error'"
+    },
+    {
+      "type": "CONTEXT",
+      "fromState": "NEW",
+      "targetState": "UNVERIFIED",
+      "params": [
+        {
+          "validation_result": "unverified"
+        }
+      ]
+    },
+    {
+      "type": "EVENT",
+      "event": "PENDING_FUNDING",
+      "fromState": "PENDING_PROBATION",
+      "targetState": "PENDING_FUNDING"
+    },
+    {
+      "type": "EVENT",
+      "event": "INSUFFICIENT_FUNDS",
+      "fromState": "PENDING_PROBATION",
+      "targetState": "INSUFFICIENT_FUNDS"
+    },
+    {
+      "type": "EVENT",
+      "event": "RELEASE",
+      "fromState": "INSUFFICIENT_FUNDS",
+      "targetState": "CHECKING_INSTRUMENT"
+    },
+    {
+      "type": "EVENT",
+      "event": "RELEASE",
+      "fromState": "PENDING_FUNDING",
+      "targetState": "CHECKING_INSTRUMENT"
+    },
+    {
+      "type": "EVENT",
+      "event": "CANCEL",
+      "fromState": "PENDING_PROBATION",
+      "targetState": "CANCELLED"
+    },
+    {
+      "type": "EVENT",
+      "event": "CANCEL",
+      "fromState": "PENDING_FUNDING",
+      "targetState": "CANCELLED"
+    },
+    {
+      "type": "EVENT",
+      "event": "TTL_EXPIRED",
+      "fromState": "PENDING_PROBATION",
+      "targetState": "CHECKING_INSTRUMENT"
+    },
+    {
+      "type": "CONTEXT",
+      "fromState": "CHECKING_INSTRUMENT",
+      "targetState": "PENDING_PROCESSING",
+      "impl": "example.transitions.RiskClearTransition"
+    },
+    {
+      "type": "CONTEXT",
+      "fromState": "CHECKING_INSTRUMENT",
+      "targetState": "RISK_PENDING",
+      "impl": "example.transitions.RiskReviewTransition"
+    },
+    {
+      "type": "EVENT",
+      "fromState": "RISK_PENDING",
+      "targetState": "RISK_ERROR",
+      "event": "RISK_REJECT"
+    },
+    {
+      "type": "EVENT",
+      "fromState": "RISK_PENDING",
+      "targetState": "PENDING_PROCESSING",
+      "event": "RISK_CLEARED"
+    },
+    {
+      "type": "EVENT",
+      "fromState": "PENDING_PROCESSING",
+      "targetState": "PROCESSING_OCT",
+      "event": "PROCESS_OCT"
+    },
+    {
+      "type": "EVENT",
+      "fromState": "PENDING_PROCESSING",
+      "targetState": "PROCESSING_ACH",
+      "event": "PROCESS_ACH"
+    },
+    {
+      "type": "CONTEXT",
+      "fromState": "PROCESSING_OCT",
+      "targetState": "PROCESSING_ERROR",
+      "impl": "example.transitions.ProcessingErrorTransition"
+    },
+    {
+      "type": "CONTEXT",
+      "fromState": "PROCESSING_OCT",
+      "targetState": "CARD_DECLINE",
+      "impl": "example.transitions.CardDeclinedTransition"
+    },
+    {
+      "type": "CONTEXT",
+      "fromState": "PROCESSING_OCT",
+      "targetState": "CARD_HARD_DECLINE",
+      "impl": "example.transitions.CardHardDeclinedTransition"
+    },
+    {
+      "type": "DEFAULT",
+      "fromState": "CARD_HARD_DECLINE",
+      "targetState": "NO_PROCESS"
+    },
+    {
+      "type": "CONTEXT",
+      "fromState": "PROCESSING_OCT",
+      "targetState": "PROCESSOR_TIMEOUT",
+      "impl": "example.transitions.ProcessorTimeoutTransition"
+    },
+    {
+      "type": "CONTEXT",
+      "fromState": "PROCESSING_OCT",
+      "targetState": "CARD_SUCCESS",
+      "impl": "example.transitions.CardSuccessTransition"
+    },
+    {
+      "type": "EVENT",
+      "fromState": "PROCESSING_ACH",
+      "targetState": "PROCESSING_ERROR",
+      "event": "PROCESSING_ERROR"
+    },
+    {
+      "type": "EVENT",
+      "fromState": "PROCESSING_ACH",
+      "targetState": "SENT_FOR_SETTLEMENT",
+      "event": "SENT_FOR_SETTLEMENT"
+    },
+    {
+      "type": "EVENT",
+      "fromState": "SENT_FOR_SETTLEMENT",
+      "targetState": "SETTLED",
+      "event": "TTL_EXPIRED"
+    },
+    {
+      "type": "EVENT",
+      "fromState": "SETTLED",
+      "targetState": "RETURNED",
+      "event": "RETURNED"
+    },
+    {
+      "type": "EVENT",
+      "fromState": "SENT_FOR_SETTLEMENT",
+      "targetState": "RETURNED",
+      "event": "RETURNED"
+    },
+    {
+      "type": "EVENT",
+      "fromState": "VELOCITY_LIMIT_EXCEEDED",
+      "targetState": "PENDING_PROCESSING",
+      "event": "REPROCESS"
+    },
+    {
+      "type": "EVENT",
+      "fromState": "PROCESSOR_TIMEOUT",
+      "targetState": "PENDING_PROCESSING",
+      "event": "REPROCESS"
+    }
+  ]
+}
